@@ -1,7 +1,6 @@
 import { ImportedTransaction, SpreadsheetCell, SpreadsheetRow } from '../../import/imported-transaction';
 
 const WECHAT_BILL_HEADERS = ['交易时间', '交易类型', '交易对方', '商品', '收/支', '金额(元)'] as const;
-const EXPENSE_KEYWORDS = ['餐饮', '美团', '饿了么', '超市', '购物', '出行', '滴滴', '铁路', '商户消费'] as const;
 
 interface WechatBillColumnIndexes {
   time: number;
@@ -15,7 +14,7 @@ interface WechatBillColumnIndexes {
 export function parseWechatBillRows(rows: SpreadsheetRow[]): ImportedTransaction[] {
   const headerRowIndex = rows.findIndex((row) => hasExpectedHeaders(row));
   if (headerRowIndex === -1) {
-    throw new Error('未找到微信账单表头');
+    throw new Error('未找到微信账单表头。');
   }
 
   const headers = rows[headerRowIndex].map((value) => normalizeCell(value));
@@ -47,15 +46,11 @@ function parseTransactionRow(row: SpreadsheetRow | undefined, indexes: WechatBil
   const product = normalizeCell(row[indexes.product]);
   const incomeExpense = normalizeCell(row[indexes.incomeExpense]);
 
-  const signedAmount = signAmount(amount, incomeExpense, tradeType);
-  const note = buildNote(product, tradeType, counterparty);
-  const category = guessCategory(signedAmount, tradeType, note);
-
   return {
     date,
-    category,
-    amount: signedAmount,
-    note,
+    category: '',
+    amount: signAmount(amount, incomeExpense, tradeType),
+    note: buildNote(product, tradeType, counterparty),
     originalData: row,
   };
 }
@@ -80,7 +75,7 @@ function resolveColumnIndexes(headers: string[]): WechatBillColumnIndexes {
   };
 
   if (Object.values(indexes).some((index) => index === -1)) {
-    throw new Error('微信账单列缺失，无法导入');
+    throw new Error('微信账单列缺失，无法导入。');
   }
 
   return indexes;
@@ -104,7 +99,7 @@ function parseAmount(value: SpreadsheetCell): number | null {
     return Math.abs(value);
   }
 
-  const normalized = normalizeCell(value).replace(/[¥￥,\s]/g, '').replace(/^[-+]/, '');
+  const normalized = normalizeCell(value).replace(/[¥,\s]/g, '').replace(/^[-+]/, '');
   if (!normalized) {
     return null;
   }
@@ -132,14 +127,4 @@ function signAmount(amount: number, incomeExpense: string, tradeType: string): n
 function buildNote(product: string, tradeType: string, counterparty: string): string {
   const base = product && product !== '/' ? product : tradeType;
   return counterparty && counterparty !== '/' ? `${base} - ${counterparty}` : base;
-}
-
-function guessCategory(amount: number, tradeType: string, note: string): string {
-  if (amount > 0) {
-    return tradeType.includes('工资') ? '工资' : '其他';
-  }
-
-  const fullText = `${tradeType} ${note}`.toLowerCase();
-  const isConsumption = EXPENSE_KEYWORDS.some((keyword) => fullText.includes(keyword.toLowerCase()));
-  return isConsumption ? '消费' : '其他';
 }

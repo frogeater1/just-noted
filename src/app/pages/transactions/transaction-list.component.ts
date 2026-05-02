@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AutofocusDirective } from '../../directives/autofocus.directive';
 import { ImportedTransaction } from '../../../import/imported-transaction';
+import { CategoryService } from '../../services/category.service';
 import { ImportService } from '../../services/import.service';
 import { Transaction, TransactionService } from '../../services/transaction.service';
 
@@ -18,24 +19,36 @@ export class TransactionListComponent {
   private fb = inject(FormBuilder);
   private importService = inject(ImportService);
   readonly transactionService = inject(TransactionService);
+  readonly categoryService = inject(CategoryService);
 
   showAddModal = signal(false);
   transactions = this.transactionService.transactions;
   editingCell: { id: number; field: string } | null = null;
+  selectedCategory = signal('');
+
+  readonly expenseCategories = this.categoryService.expenseCategories;
+  readonly incomeCategories = this.categoryService.incomeCategories;
+  readonly noteSuggestions = computed(() => this.transactionService.getNotesByCategory(this.selectedCategory()));
 
   addTransactionForm: FormGroup = this.fb.group({
     uiType: ['expense'],
     amount: ['', [Validators.required]],
-    category: ['消费', Validators.required],
+    category: ['', Validators.required],
     date: [this.getNowString(), Validators.required],
     note: [''],
   });
 
   constructor() {
     this.addTransactionForm.get('uiType')?.valueChanges.subscribe((value) => {
+      const nextCategory = value === 'expense' ? this.expenseCategories()[0]?.name ?? '' : this.incomeCategories()[0]?.name ?? '';
       this.addTransactionForm.patchValue({
-        category: value === 'expense' ? '消费' : '工资',
+        category: nextCategory,
       });
+      this.selectedCategory.set(nextCategory);
+    });
+
+    this.addTransactionForm.get('category')?.valueChanges.subscribe((value) => {
+      this.selectedCategory.set(String(value ?? ''));
     });
   }
 
@@ -64,13 +77,17 @@ export class TransactionListComponent {
   }
 
   openAddModal() {
+    const defaultCategory = this.expenseCategories()[0]?.name ?? this.incomeCategories()[0]?.name ?? '';
+    const defaultType = this.expenseCategories().length > 0 ? 'expense' : 'income';
+
     this.addTransactionForm.reset({
-      uiType: 'expense',
-      category: '消费',
+      uiType: defaultType,
+      category: defaultCategory,
       date: this.getNowString(),
       note: '',
       amount: '',
     });
+    this.selectedCategory.set(defaultCategory);
     this.showAddModal.set(true);
   }
 
@@ -82,6 +99,7 @@ export class TransactionListComponent {
       date: transaction.date,
       note: transaction.note,
     });
+    this.selectedCategory.set(transaction.category);
     this.showAddModal.set(true);
   }
 
@@ -131,13 +149,14 @@ export class TransactionListComponent {
     }
 
     try {
-      const transactions = await this.transactionService.loadTransactionsFromFile(file);
-      if (!confirm(`确定从 ${file.name} 恢复 ${transactions.length} 条记录吗？当前列表会被替换。`)) {
+      const data = await this.transactionService.loadAppDataFromFile(file);
+      if (!confirm(`确定从 ${file.name} 恢复 ${data.transactions.length} 条交易和 ${data.categories.length} 个分类吗？当前数据会被替换。`)) {
         return;
       }
 
-      this.transactionService.replaceTransactions(transactions);
-      alert(`已从 ${file.name} 恢复 ${transactions.length} 条记录。`);
+      this.transactionService.replaceTransactions(data.transactions);
+      this.categoryService.replaceCategories(data.categories);
+      alert(`已从 ${file.name} 恢复交易和分类数据。`);
     } catch (error) {
       console.error('SQLite restore failed', error);
       alert('恢复 SQLite 文件失败，请查看控制台。');
@@ -149,6 +168,12 @@ export class TransactionListComponent {
   deleteTransaction(id: number) {
     if (confirm('确定删除这条记录吗？')) {
       this.transactionService.deleteTransaction(id);
+    }
+  }
+
+  clearAllTransactions() {
+    if (confirm('确定清空当前所有交易记录吗？此操作不会自动删除已导出的 SQLite 文件。')) {
+      this.transactionService.clearTransactions();
     }
   }
 
@@ -179,6 +204,23 @@ export class TransactionListComponent {
     } finally {
       input.value = '';
     }
+  }
+
+  ensureCategoriesBeforeAdd() {
+    if (this.expenseCategories().length > 0 || this.incomeCategories().length > 0) {
+      this.openAddModal();
+      return;
+    }
+
+    alert('请先在“分类管理”中新增至少一个分类，再新增交易记录。');
+  }
+
+  getEditCategoryOptions(transaction: Transaction) {
+    return transaction.amount < 0 ? this.expenseCategories() : this.incomeCategories();
+  }
+
+  getTransactionNoteSuggestions(category: string): string[] {
+    return this.transactionService.getNotesByCategory(category);
   }
 
   private coerceFieldValue(field: keyof Transaction, value: string): Transaction[keyof Transaction] {
@@ -212,7 +254,7 @@ export class TransactionListComponent {
     return importedTransactions.map((transaction) => ({
       id: Math.random(),
       date: transaction.date,
-      category: transaction.category,
+      category: this.transactionService.resolveCategoryByNote(transaction.note),
       note: transaction.note,
       amount: transaction.amount,
     }));

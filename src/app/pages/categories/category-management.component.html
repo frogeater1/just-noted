@@ -1,0 +1,85 @@
+<div class="page-container">
+  <div class="page-header">
+    <div>
+      <h2>分类管理</h2>
+      <p>可以新增或删除分类。每个分类下的 note 会根据交易明细自动汇总并去重。</p>
+    </div>
+  </div>
+
+  <div class="card add-card">
+    <form [formGroup]="addCategoryForm" (ngSubmit)="addCategory()" class="add-form">
+      <label class="field">
+        <span>分类名称</span>
+        <input class="form-input" type="text" formControlName="name" placeholder="例如：餐饮、报销、奖金" />
+      </label>
+
+      <label class="field">
+        <span>分类类型</span>
+        <select class="form-select" formControlName="type">
+          <option value="expense">支出</option>
+          <option value="income">收入</option>
+        </select>
+      </label>
+
+      <button type="submit" class="btn btn-primary" [disabled]="addCategoryForm.invalid">新增分类</button>
+    </form>
+  </div>
+
+  @if (!hasCategories()) {
+    <div class="card empty-card">暂无分类</div>
+  } @else {
+    <div class="category-sections">
+      <section class="card category-section">
+        <div class="section-title">支出分类</div>
+        <div class="category-list">
+          @for (category of expenseCategories(); track trackByCategory($index, category)) {
+            <div class="category-card">
+              <div class="category-header">
+                <div class="category-name">{{ category.name }}</div>
+                <button class="btn btn-outline btn-sm" type="button" (click)="deleteCategory(category)">删除</button>
+              </div>
+
+              <div class="note-list">
+                @if (getCategoryNotes(category.name).length === 0) {
+                  <div class="note-empty">暂无 note</div>
+                } @else {
+                  @for (note of getCategoryNotes(category.name); track trackByNote($index, note)) {
+                    <div class="note-chip">
+                      <span>{{ note }}</span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="card category-section">
+        <div class="section-title">收入分类</div>
+        <div class="category-list">
+          @for (category of incomeCategories(); track trackByCategory($index, category)) {
+            <div class="category-card">
+              <div class="category-header">
+                <div class="category-name">{{ category.name }}</div>
+                <button class="btn btn-outline btn-sm" type="button" (click)="deleteCategory(category)">删除</button>
+              </div>
+
+              <div class="note-list">
+                @if (getCategoryNotes(category.name).length === 0) {
+                  <div class="note-empty">暂无 note</div>
+                } @else {
+                  @for (note of getCategoryNotes(category.name); track trackByNote($index, note)) {
+                    <div class="note-chip">
+                      <span>{{ note }}</span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</div>

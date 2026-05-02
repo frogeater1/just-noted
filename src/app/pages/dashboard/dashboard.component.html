@@ -1,9 +1,24 @@
 <div class="dashboard-container">
-  <div class="stats-grid">
-    <div class="card stat-card">
-      <div class="stat-label">总资产</div>
-      <div class="stat-value">¥{{ totalAssets() | number:'1.2-2' }}</div>
+  <div class="card filter-card">
+    <div class="filter-header">
+      <h3>统计区间</h3>
+      <button class="btn btn-outline" type="button" (click)="clearDateRange()">重置日期</button>
     </div>
+
+    <div class="filter-grid">
+      <label class="filter-field">
+        <span>起始日期</span>
+        <input type="date" class="form-input" [value]="startDate()" (change)="onStartDateChange($event)" />
+      </label>
+
+      <label class="filter-field">
+        <span>结束日期</span>
+        <input type="date" class="form-input" [value]="endDate()" (change)="onEndDateChange($event)" />
+      </label>
+    </div>
+  </div>
+
+  <div class="stats-grid">
     <div class="card stat-card">
       <div class="stat-label">收入</div>
       <div class="stat-value text-success">¥{{ currentIncome() | number:'1.2-2' }}</div>
@@ -22,7 +37,7 @@
 
       <div class="bar-chart">
         @if (chartData().length === 0) {
-          <div class="empty-state">暂无支出数据</div>
+          <div class="empty-state">当前区间暂无支出数据</div>
         } @else {
           @for (item of chartData(); track item.key) {
             <div class="bar-group">
@@ -37,6 +52,37 @@
           }
         }
       </div>
+    </div>
+
+    <div class="card pie-section">
+      <div class="section-header">
+        <h3>交易类型（支出）</h3>
+      </div>
+
+      @if (pieData().length === 0) {
+        <div class="empty-state">当前区间暂无支出分类数据</div>
+      } @else {
+        <div class="pie-layout">
+          <div class="pie-chart" [style.background]="pieGradient()">
+            <div class="pie-hole"></div>
+          </div>
+
+          <div class="pie-legend">
+            @for (item of pieData(); track item.label) {
+              <div class="legend-item">
+                <span class="legend-dot" [style.background-color]="item.color"></span>
+                <div class="legend-text">
+                  <div class="legend-row">
+                    <span class="legend-label">{{ item.label }}</span>
+                    <span class="legend-percent">{{ item.percent | number:'1.0-1' }}%</span>
+                  </div>
+                  <div class="legend-amount">¥{{ item.amount | number:'1.0-0' }}</div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
     </div>
   </div>
 </div>

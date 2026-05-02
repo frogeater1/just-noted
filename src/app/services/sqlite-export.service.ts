@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import initSqlJs from 'sql.js';
 import type { Database, SqlJsStatic } from 'sql.js';
-import type { Transaction } from './transaction.service';
+import { AppDataBundle } from '../../import/app-data-bundle';
+import { CategoryDefinition } from '../../import/category-definition';
+import { Transaction } from './transaction.service';
 
 interface FilePickerAcceptType {
   description?: string;
@@ -35,39 +37,41 @@ export class SqliteExportService {
   private sqlJsPromise?: Promise<SqlJsStatic>;
   private fileHandle?: FileSystemFileHandleLike;
 
-  async saveTransactions(transactions: Transaction[]): Promise<string> {
-    const bytes = await this.buildDatabaseBytes(transactions);
+  async saveAppData(data: AppDataBundle): Promise<string> {
+    const bytes = await this.buildDatabaseBytes(data);
     const suggestedName = this.buildSuggestedFileName();
 
     if (this.supportsFilePicker()) {
-      const handle = await this.getOrCreateFileHandle(suggestedName);
-      await this.writeToHandle(handle, bytes);
-      return handle.name;
+      return this.saveWithFilePicker(bytes, suggestedName);
     }
 
     this.downloadBytes(bytes, suggestedName);
     return suggestedName;
   }
 
-  async loadTransactions(file: File): Promise<Transaction[]> {
+  async loadAppData(file: File): Promise<AppDataBundle> {
     const bytes = await this.readFileBytes(file);
     const SQL = await this.getSqlJs();
     const database = new SQL.Database(bytes);
 
     try {
-      return this.readTransactions(database);
+      return {
+        transactions: this.readTransactions(database),
+        categories: this.readCategories(database),
+      };
     } finally {
       database.close();
     }
   }
 
-  private async buildDatabaseBytes(transactions: Transaction[]): Promise<Uint8Array> {
+  private async buildDatabaseBytes(data: AppDataBundle): Promise<Uint8Array> {
     const SQL = await this.getSqlJs();
     const database = new SQL.Database();
 
     try {
       this.createSchema(database);
-      this.insertTransactions(database, transactions);
+      this.insertTransactions(database, data.transactions);
+      this.insertCategories(database, data.categories);
       return database.export();
     } finally {
       database.close();
@@ -76,7 +80,7 @@ export class SqliteExportService {
 
   private async getSqlJs(): Promise<SqlJsStatic> {
     this.sqlJsPromise ??= initSqlJs({
-      locateFile: (file) => file.endsWith('.wasm') ? 'sql-wasm.wasm' : file,
+      locateFile: (file) => (file.endsWith('.wasm') ? 'sql-wasm.wasm' : file),
     });
 
     return this.sqlJsPromise;
@@ -97,7 +101,19 @@ export class SqliteExportService {
         amount REAL NOT NULL
       );
 
+      CREATE TABLE categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL
+      );
+
+      CREATE TABLE category_notes (
+        category_id TEXT NOT NULL,
+        note TEXT NOT NULL
+      );
+
       CREATE INDEX idx_transactions_date ON transactions(date DESC);
+      CREATE INDEX idx_category_notes_category_id ON category_notes(category_id);
     `);
   }
 
@@ -122,6 +138,37 @@ export class SqliteExportService {
     }
   }
 
+  private insertCategories(database: Database, categories: CategoryDefinition[]) {
+    database.run('BEGIN TRANSACTION;');
+
+    try {
+      for (const category of categories) {
+        database.run(
+          `
+            INSERT INTO categories (id, name, type)
+            VALUES (?, ?, ?);
+          `,
+          [category.id, category.name, category.type],
+        );
+
+        for (const note of category.notes) {
+          database.run(
+            `
+              INSERT INTO category_notes (category_id, note)
+              VALUES (?, ?);
+            `,
+            [category.id, note],
+          );
+        }
+      }
+
+      database.run('COMMIT;');
+    } catch (error) {
+      database.run('ROLLBACK;');
+      throw error;
+    }
+  }
+
   private readTransactions(database: Database): Transaction[] {
     const results = database.exec(`
       SELECT id, date, category, note, amount
@@ -131,6 +178,45 @@ export class SqliteExportService {
 
     const rows = results[0]?.values ?? [];
     return rows.map((row) => this.mapTransactionRow(row));
+  }
+
+  private readCategories(database: Database): CategoryDefinition[] {
+    const categoriesResult = database.exec(`
+      SELECT id, name, type
+      FROM categories
+      ORDER BY type, name;
+    `);
+
+    if (categoriesResult.length === 0) {
+      return [];
+    }
+
+    const notesResult = database.exec(`
+      SELECT category_id, note
+      FROM category_notes
+      ORDER BY category_id, note;
+    `);
+
+    const notesMap = new Map<string, string[]>();
+    for (const row of notesResult[0]?.values ?? []) {
+      const [categoryId, note] = row;
+      const key = this.toStringValue(categoryId, 'category_id');
+      const current = notesMap.get(key) ?? [];
+      current.push(this.toStringValue(note, 'note'));
+      notesMap.set(key, current);
+    }
+
+    return categoriesResult[0].values.map((row) => {
+      const [id, name, type] = row;
+      const categoryId = this.toStringValue(id, 'id');
+
+      return {
+        id: categoryId,
+        name: this.toStringValue(name, 'name'),
+        type: this.toCategoryType(type),
+        notes: notesMap.get(categoryId) ?? [],
+      };
+    });
   }
 
   private mapTransactionRow(row: unknown[]): Transaction {
@@ -169,6 +255,15 @@ export class SqliteExportService {
     return typeof value === 'string' ? value : String(value);
   }
 
+  private toCategoryType(value: unknown): 'expense' | 'income' {
+    const type = this.toStringValue(value, 'type');
+    if (type !== 'expense' && type !== 'income') {
+      throw new Error('SQLite 文件中的分类类型无效。');
+    }
+
+    return type;
+  }
+
   private supportsFilePicker(): boolean {
     return typeof (window as SaveFilePickerWindow).showSaveFilePicker === 'function';
   }
@@ -197,6 +292,23 @@ export class SqliteExportService {
     });
 
     return this.fileHandle;
+  }
+
+  private async saveWithFilePicker(bytes: Uint8Array, suggestedName: string): Promise<string> {
+    try {
+      const handle = await this.getOrCreateFileHandle(suggestedName);
+      await this.writeToHandle(handle, bytes);
+      return handle.name;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'InvalidStateError') {
+        this.fileHandle = undefined;
+        const handle = await this.getOrCreateFileHandle(suggestedName);
+        await this.writeToHandle(handle, bytes);
+        return handle.name;
+      }
+
+      throw error;
+    }
   }
 
   private async writeToHandle(handle: FileSystemFileHandleLike, bytes: Uint8Array) {
