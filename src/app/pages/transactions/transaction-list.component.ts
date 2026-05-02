@@ -91,18 +91,6 @@ export class TransactionListComponent {
     this.showAddModal.set(true);
   }
 
-  openEditModal(transaction: Transaction) {
-    this.addTransactionForm.patchValue({
-      uiType: transaction.amount < 0 ? 'expense' : 'income',
-      amount: Math.abs(transaction.amount),
-      category: transaction.category,
-      date: transaction.date,
-      note: transaction.note,
-    });
-    this.selectedCategory.set(transaction.category);
-    this.showAddModal.set(true);
-  }
-
   closeAddModal() {
     this.showAddModal.set(false);
   }
@@ -126,10 +114,20 @@ export class TransactionListComponent {
     this.closeAddModal();
   }
 
+  async saveToBrowser() {
+    try {
+      await this.transactionService.saveTransactionsToBrowser();
+      alert('已保存到浏览器 IndexedDB。');
+    } catch (error) {
+      console.error(error);
+      alert('保存到浏览器失败，请查看控制台。');
+    }
+  }
+
   async saveAll() {
     try {
       const fileName = await this.transactionService.saveTransactions();
-      alert(`已保存到 ${fileName}`);
+      alert(`已保存为 SQLite 文件：${fileName}`);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
@@ -187,17 +185,16 @@ export class TransactionListComponent {
 
     try {
       const importedTransactions = await this.importService.parseWechatFile(file);
-      const latestDate = this.getLatestTransactionDate();
-      const newItems = this.filterNewImportedTransactions(importedTransactions, latestDate);
+      const newItems = this.filterDuplicateImportedTransactions(importedTransactions);
       const skippedCount = importedTransactions.length - newItems.length;
 
       if (newItems.length === 0) {
-        alert(`没有发现新记录。共扫描 ${importedTransactions.length} 条，全部早于或等于当前最新记录（${latestDate}）。`);
+        alert(`没有发现可导入的新记录。共扫描 ${importedTransactions.length} 条，全部命中重复订单规则。`);
         return;
       }
 
       this.transactionService.addTransactions(this.toTransactions(newItems));
-      alert(`成功导入 ${newItems.length} 条新记录，跳过 ${skippedCount} 条旧记录。`);
+      alert(`成功导入 ${newItems.length} 条新记录，跳过 ${skippedCount} 条重复订单。`);
     } catch (error) {
       console.error('Import failed', error);
       alert('导入文件失败，请检查格式。');
@@ -240,14 +237,8 @@ export class TransactionListComponent {
     return uiType === 'expense' ? -amount : amount;
   }
 
-  private getLatestTransactionDate(): string {
-    return this.transactionService
-      .transactions()
-      .reduce((latest, transaction) => (transaction.date > latest ? transaction.date : latest), '');
-  }
-
-  private filterNewImportedTransactions(importedTransactions: ImportedTransaction[], latestDate: string): ImportedTransaction[] {
-    return importedTransactions.filter((transaction) => transaction.date > latestDate);
+  private filterDuplicateImportedTransactions(importedTransactions: ImportedTransaction[]): ImportedTransaction[] {
+    return importedTransactions.filter((transaction) => !this.transactionService.isSameImportedOrder(transaction));
   }
 
   private toTransactions(importedTransactions: ImportedTransaction[]): Transaction[] {

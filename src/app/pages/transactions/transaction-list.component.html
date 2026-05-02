@@ -7,9 +7,10 @@
 
       <button class="btn btn-outline" type="button" (click)="fileInput.click()">导入账单</button>
       <button class="btn btn-outline" type="button" (click)="sqliteInput.click()">恢复 SQLite</button>
-      <button class="btn btn-primary" type="button" (click)="ensureCategoriesBeforeAdd()">+ 记一笔</button>
+      <button class="btn btn-primary" type="button" (click)="ensureCategoriesBeforeAdd()">+ 记了个账</button>
       <button class="btn btn-outline" type="button" (click)="clearAllTransactions()">清空</button>
-      <button class="btn btn-outline" type="button" (click)="saveAll()">保存</button>
+      <button class="btn btn-outline" type="button" (click)="saveToBrowser()">保存到浏览器</button>
+      <button class="btn btn-outline" type="button" (click)="saveAll()">保存为 SQLite</button>
     </div>
   </div>
 
@@ -18,7 +19,7 @@
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <div>
-            <h3>记一笔</h3>
+            <h3>记了个账</h3>
             <p>填写金额、分类、日期和备注。</p>
           </div>
           <button type="button" class="btn btn-outline" (click)="closeAddModal()">取消</button>
@@ -136,7 +137,7 @@
                   }
                 </select>
               } @else {
-                <div class="category-pill">{{ t.category || '未分类' }}</div>
+                <div class="category-pill" [class.category-pill-uncategorized]="!t.category">{{ t.category || '未分类' }}</div>
               }
             </td>
 
