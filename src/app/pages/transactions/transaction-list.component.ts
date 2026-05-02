@@ -111,14 +111,14 @@ export class TransactionListComponent {
   async saveAll() {
     try {
       const fileName = await this.transactionService.saveTransactions();
-      alert(`Saved transactions to ${fileName}.`);
+      alert(`已保存到 ${fileName}`);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
 
       console.error(error);
-      alert('Failed to save SQLite file. Check the console for details.');
+      alert('保存 SQLite 文件失败，请查看控制台。');
     }
   }
 
@@ -132,22 +132,22 @@ export class TransactionListComponent {
 
     try {
       const transactions = await this.transactionService.loadTransactionsFromFile(file);
-      if (!confirm(`Restore ${transactions.length} transactions from ${file.name}? This will replace the current list.`)) {
+      if (!confirm(`确定从 ${file.name} 恢复 ${transactions.length} 条记录吗？当前列表会被替换。`)) {
         return;
       }
 
       this.transactionService.replaceTransactions(transactions);
-      alert(`Restored ${transactions.length} transactions from ${file.name}.`);
+      alert(`已从 ${file.name} 恢复 ${transactions.length} 条记录。`);
     } catch (error) {
       console.error('SQLite restore failed', error);
-      alert('Failed to restore SQLite file. Check the console for details.');
+      alert('恢复 SQLite 文件失败，请查看控制台。');
     } finally {
       input.value = '';
     }
   }
 
   deleteTransaction(id: number) {
-    if (confirm('Are you sure you want to delete this transaction?')) {
+    if (confirm('确定删除这条记录吗？')) {
       this.transactionService.deleteTransaction(id);
     }
   }
@@ -167,15 +167,15 @@ export class TransactionListComponent {
       const skippedCount = importedTransactions.length - newItems.length;
 
       if (newItems.length === 0) {
-        alert(`No new transactions found. Scanned ${importedTransactions.length} items, all were older than or equal to the latest existing record (${latestDate}).`);
+        alert(`没有发现新记录。共扫描 ${importedTransactions.length} 条，全部早于或等于当前最新记录（${latestDate}）。`);
         return;
       }
 
       this.transactionService.addTransactions(this.toTransactions(newItems));
-      alert(`Successfully imported ${newItems.length} new transactions. Skipped ${skippedCount} older duplicates.`);
+      alert(`成功导入 ${newItems.length} 条新记录，跳过 ${skippedCount} 条旧记录。`);
     } catch (error) {
       console.error('Import failed', error);
-      alert('Failed to import file. Please check the format.');
+      alert('导入文件失败，请检查格式。');
     } finally {
       input.value = '';
     }

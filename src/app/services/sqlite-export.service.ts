@@ -76,7 +76,7 @@ export class SqliteExportService {
 
   private async getSqlJs(): Promise<SqlJsStatic> {
     this.sqlJsPromise ??= initSqlJs({
-      locateFile: (file) => file === 'sql-wasm.wasm' ? 'sql-wasm.wasm' : file,
+      locateFile: (file) => file.endsWith('.wasm') ? 'sql-wasm.wasm' : file,
     });
 
     return this.sqlJsPromise;
@@ -111,13 +111,7 @@ export class SqliteExportService {
             INSERT INTO transactions (id, date, category, note, amount)
             VALUES (?, ?, ?, ?, ?);
           `,
-          [
-            transaction.id,
-            transaction.date,
-            transaction.category,
-            transaction.note,
-            transaction.amount,
-          ],
+          [transaction.id, transaction.date, transaction.category, transaction.note, transaction.amount],
         );
       }
 
@@ -153,7 +147,7 @@ export class SqliteExportService {
 
   private toNumber(value: unknown, field: string): number {
     if (typeof value !== 'number' || Number.isNaN(value)) {
-      throw new Error(`SQLite file has an invalid ${field} field.`);
+      throw new Error(`SQLite 文件中的 ${field} 字段无效。`);
     }
 
     return value;
@@ -161,7 +155,7 @@ export class SqliteExportService {
 
   private toStringValue(value: unknown, field: string): string {
     if (typeof value !== 'string') {
-      throw new Error(`SQLite file has an invalid ${field} field.`);
+      throw new Error(`SQLite 文件中的 ${field} 字段无效。`);
     }
 
     return value;
@@ -186,7 +180,7 @@ export class SqliteExportService {
 
     const picker = (window as SaveFilePickerWindow).showSaveFilePicker;
     if (!picker) {
-      throw new Error('当前浏览器不支持文件保存对话框');
+      throw new Error('当前浏览器不支持文件保存对话框。');
     }
 
     this.fileHandle = await picker({
@@ -194,7 +188,7 @@ export class SqliteExportService {
       excludeAcceptAllOption: true,
       types: [
         {
-          description: 'SQLite Database',
+          description: 'SQLite 数据库',
           accept: {
             'application/vnd.sqlite3': ['.sqlite', '.db'],
           },

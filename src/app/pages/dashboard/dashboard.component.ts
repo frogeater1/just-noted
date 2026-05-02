@@ -1,6 +1,13 @@
-import { Component, ChangeDetectionStrategy, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TransactionService } from '../../services/transaction.service';
+
+interface MonthlyExpenseChartItem {
+  key: string;
+  label: string;
+  amount: number;
+  value: number;
+}
 
 @Component({
   selector: 'app-dashboard',
@@ -8,43 +15,53 @@ import { TransactionService } from '../../services/transaction.service';
   imports: [CommonModule],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {
-  // Stats
-  totalAssets;
-  currentIncome;
-  currentExpense;
-  chartData;
-  recentTransactions;
+  readonly transactionService = inject(TransactionService);
 
-  constructor(public transactionService: TransactionService) {
-    this.totalAssets = this.transactionService.netAssets;
-    this.currentIncome = this.transactionService.totalIncome;
-    this.currentExpense = this.transactionService.totalExpense;
+  readonly totalAssets = this.transactionService.netAssets;
+  readonly currentIncome = this.transactionService.totalIncome;
+  readonly currentExpense = this.transactionService.totalExpense;
 
-    this.chartData = computed(() => {
-      const txs = this.transactionService.transactions();
-      const map = new Map<string, number>();
+  readonly chartData = computed<MonthlyExpenseChartItem[]>(() => {
+    const monthlyTotals = new Map<string, number>();
 
-      txs.filter(t => t.amount < 0).forEach(t => {
-        const date = new Date(t.date);
-        const label = `${date.getMonth() + 1}月`;
-        const current = map.get(label) || 0;
-        map.set(label, current + Math.abs(t.amount)); // Chart shows positive magnitude of expense
-      });
+    for (const transaction of this.transactionService.transactions()) {
+      if (transaction.amount >= 0) {
+        continue;
+      }
 
-      if (map.size === 0) return [];
+      const date = new Date(transaction.date);
+      if (Number.isNaN(date.getTime())) {
+        continue;
+      }
 
-      return Array.from(map.entries()).map(([label, val]) => ({
-        label,
-        value: val > 0 ? (val / 5000) * 100 : 0,
-        amount: val
-      }));
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const key = `${year}-${String(month).padStart(2, '0')}`;
+      monthlyTotals.set(key, (monthlyTotals.get(key) ?? 0) + Math.abs(transaction.amount));
+    }
+
+    const sortedEntries = Array.from(monthlyTotals.entries()).sort(([left], [right]) => left.localeCompare(right));
+    if (sortedEntries.length === 0) {
+      return [];
+    }
+
+    const recentEntries = sortedEntries.slice(-6);
+    const maxAmount = Math.max(...recentEntries.map(([, amount]) => amount));
+    const shouldShowYear = new Set(recentEntries.map(([key]) => key.slice(0, 4))).size > 1;
+
+    return recentEntries.map(([key, amount]) => {
+      const [year, month] = key.split('-');
+      const monthLabel = `${Number(month)}月`;
+
+      return {
+        key,
+        label: shouldShowYear ? `${year}/${monthLabel}` : monthLabel,
+        amount,
+        value: maxAmount > 0 ? (amount / maxAmount) * 100 : 0,
+      };
     });
-
-    this.recentTransactions = computed(() => {
-      return this.transactionService.transactions().slice(0, 5);
-    });
-  }
+  });
 }

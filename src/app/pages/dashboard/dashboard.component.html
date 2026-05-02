@@ -1,63 +1,42 @@
 <div class="dashboard-container">
-    <!-- Stats Row -->
-    <!-- Stats Row -->
-    <div class="stats-grid">
-        <div class="card stat-card">
-            <div class="stat-label">总资产</div>
-            <div class="stat-value">¥{{ totalAssets() | number:'1.2-2' }}</div>
-            <!-- Trend removed for now as we don't have historical comparison logic yet -->
-        </div>
-        <div class="card stat-card">
-            <div class="stat-label">收入</div>
-            <div class="stat-value text-success">¥{{ currentIncome() | number:'1.2-2' }}</div>
-        </div>
-        <div class="card stat-card">
-            <div class="stat-label">支出</div>
-            <div class="stat-value text-danger">¥{{ currentExpense() | number:'1.2-2' }}</div>
-        </div>
+  <div class="stats-grid">
+    <div class="card stat-card">
+      <div class="stat-label">总资产</div>
+      <div class="stat-value">¥{{ totalAssets() | number:'1.2-2' }}</div>
     </div>
-
-    <!-- Main Content Grid -->
-    <div class="main-grid">
-        <!-- Chart Section -->
-        <div class="card chart-section">
-            <h3>月度支出</h3>
-            <div class="bar-chart">
-                @for (item of chartData(); track item.label) {
-                <div class="bar-group">
-                    <div class="bar" [style.height.%]="item.value">
-                        <div class="tooltip">¥{{item.amount | number:'1.0-0'}}</div>
-                    </div>
-                    <div class="label">{{item.label}}</div>
-                </div>
-                }
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="card activity-section">
-            <div class="section-header">
-                <h3>近期动态</h3>
-                <button class="btn btn-outline btn-sm">查看全部</button>
-            </div>
-            <div class="activity-list">
-                @for (t of recentTransactions(); track t.id) {
-                <div class="activity-item">
-                    <div class="icon-box" [class.income]="t.amount > 0" [class.expense]="t.amount < 0">
-                        {{ t.amount > 0 ? '↓' : '↑' }}
-                    </div>
-                    <div class="transaction-item">
-                        <div class="t-info">
-                            <span class="t-cat">{{ t.category }}</span>
-                            <span class="t-date">{{ t.date | date:'MM-dd' }}</span>
-                        </div>
-                        <div class="t-amount" [class.text-danger]="t.amount < 0" [class.text-success]="t.amount > 0">
-                            {{ t.amount > 0 ? '+' : '' }}¥{{ t.amount | number:'1.2-2' }}
-                        </div>
-                    </div>
-                </div>
-                }
-            </div>
-        </div>
+    <div class="card stat-card">
+      <div class="stat-label">收入</div>
+      <div class="stat-value text-success">¥{{ currentIncome() | number:'1.2-2' }}</div>
     </div>
+    <div class="card stat-card">
+      <div class="stat-label">支出</div>
+      <div class="stat-value text-danger">¥{{ currentExpense() | number:'1.2-2' }}</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div class="card chart-section">
+      <div class="section-header">
+        <h3>月度支出</h3>
+      </div>
+
+      <div class="bar-chart">
+        @if (chartData().length === 0) {
+          <div class="empty-state">暂无支出数据</div>
+        } @else {
+          @for (item of chartData(); track item.key) {
+            <div class="bar-group">
+              <div class="bar-value">¥{{ item.amount | number:'1.0-0' }}</div>
+              <div class="bar-track">
+                <div class="bar" [style.height.%]="item.value">
+                  <div class="tooltip">¥{{ item.amount | number:'1.0-0' }}</div>
+                </div>
+              </div>
+              <div class="label">{{ item.label }}</div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
 </div>
