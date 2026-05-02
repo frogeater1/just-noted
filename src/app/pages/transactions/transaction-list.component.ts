@@ -15,6 +15,10 @@ import { Transaction, TransactionService } from '../../services/transaction.serv
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TransactionListComponent {
+  private fb = inject(FormBuilder);
+  private importService = inject(ImportService);
+  readonly transactionService = inject(TransactionService);
+
   showAddModal = signal(false);
   transactions = this.transactionService.transactions;
   editingCell: { id: number; field: string } | null = null;
@@ -26,10 +30,6 @@ export class TransactionListComponent {
     date: [this.getNowString(), Validators.required],
     note: [''],
   });
-
-  private fb = inject(FormBuilder);
-  private importService = inject(ImportService);
-  readonly transactionService = inject(TransactionService);
 
   constructor() {
     this.addTransactionForm.get('uiType')?.valueChanges.subscribe((value) => {
@@ -108,14 +108,42 @@ export class TransactionListComponent {
     this.closeAddModal();
   }
 
-  saveAll() {
-    this.transactionService.saveTransactions().subscribe({
-      next: () => alert('Transactions saved successfully!'),
-      error: (error) => {
-        console.error(error);
-        alert('Failed to save transactions (Check console for details). Mock backend might be missing.');
-      },
-    });
+  async saveAll() {
+    try {
+      const fileName = await this.transactionService.saveTransactions();
+      alert(`Saved transactions to ${fileName}.`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+
+      console.error(error);
+      alert('Failed to save SQLite file. Check the console for details.');
+    }
+  }
+
+  async onSqliteSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const transactions = await this.transactionService.loadTransactionsFromFile(file);
+      if (!confirm(`Restore ${transactions.length} transactions from ${file.name}? This will replace the current list.`)) {
+        return;
+      }
+
+      this.transactionService.replaceTransactions(transactions);
+      alert(`Restored ${transactions.length} transactions from ${file.name}.`);
+    } catch (error) {
+      console.error('SQLite restore failed', error);
+      alert('Failed to restore SQLite file. Check the console for details.');
+    } finally {
+      input.value = '';
+    }
   }
 
   deleteTransaction(id: number) {

@@ -1,5 +1,5 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { SqliteExportService } from './sqlite-export.service';
 
 export interface Transaction {
     id: number;
@@ -13,21 +13,25 @@ export interface Transaction {
     providedIn: 'root'
 })
 export class TransactionService {
+    private sqliteExportService = inject(SqliteExportService);
     private transactionsSignal = signal<Transaction[]>([]);
 
     readonly transactions = this.transactionsSignal.asReadonly();
-
-    constructor() { }
-
-    private http = inject(HttpClient);
 
     addTransactions(newTransactions: Transaction[]) {
         this.transactionsSignal.update(current => [...newTransactions, ...current]);
     }
 
+    loadTransactionsFromFile(file: File) {
+        return this.sqliteExportService.loadTransactions(file);
+    }
+
     saveTransactions() {
-        return this.http.get('http://10.198.11.187:8084/api/test');
-        // return this.http.post('http://10.198.11.187:8084/api/transaction', this.transactionsSignal());
+        return this.sqliteExportService.saveTransactions(this.transactionsSignal());
+    }
+
+    replaceTransactions(transactions: Transaction[]) {
+        this.transactionsSignal.set(transactions);
     }
 
     updateTransaction(updatedTransaction: Transaction) {
