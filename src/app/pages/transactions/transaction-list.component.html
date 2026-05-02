@@ -1,0 +1,166 @@
+<div class="page-container">
+    <div class="header-actions">
+        <h2>交易明细</h2>
+        <div class="actions">
+            <input #fileInput type="file" (change)="onFileSelected($event)" accept=".csv,.xlsx,.xls"
+                style="display: none;" />
+            <button class="btn btn-outline" (click)="fileInput.click()" style="margin-right: 8px;">
+                导入账单
+            </button>
+            <button class="btn btn-primary" (click)="openAddModal()">
+                <span>+ 记一笔</span>
+            </button>
+            <button class="btn btn-outline" (click)="saveAll()" style="margin-left: 8px;">
+                <span>保存</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    @if (showAddModal()) {
+    <div class="modal-overlay" (click)="closeAddModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="header-actions modal-header">
+                <button type="button" class="btn btn-outline" (click)="closeAddModal()">取消</button>
+            </div>
+
+            <div class="form-scroll-area">
+                <form [formGroup]="addTransactionForm" (ngSubmit)="onSubmit()">
+                    <!-- Type Switcher (UI Only) -->
+                    <div class="form-group type-selector">
+                        <label class="radio-label"
+                            [class.active]="addTransactionForm.get('uiType')?.value === 'expense'">
+                            <input type="radio" formControlName="uiType" value="expense" />
+                            支出
+                        </label>
+                        <label class="radio-label"
+                            [class.active]="addTransactionForm.get('uiType')?.value === 'income'">
+                            <input type="radio" formControlName="uiType" value="income" />
+                            收入
+                        </label>
+                    </div>
+
+                    <!-- Amount -->
+                    <div class="form-group">
+                        <label for="amount">金额</label>
+                        <div class="input-wrapper">
+                            <span class="currency-symbol">¥</span>
+                            <input id="amount" type="number" formControlName="amount" class="form-input form-input-lg"
+                                placeholder="0.00" />
+                        </div>
+                        @if (addTransactionForm.get('amount')?.invalid && addTransactionForm.get('amount')?.touched) {
+                        <div class="error-msg">请输入金额</div>
+                        }
+                    </div>
+
+                    <div class="row">
+                        <!-- Category -->
+                        <div class="form-group col">
+                            <label for="category">分类</label>
+                            <select id="category" formControlName="category" class="form-select">
+                                <option value="" disabled selected>选择分类</option>
+                                @if (addTransactionForm.get('uiType')?.value === 'expense') {
+                                <option value="消费">消费</option>
+                                <option value="其他">其他</option>
+                                } @else {
+                                <option value="工资">工资</option>
+                                <option value="其他">其他</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Date -->
+                        <div class="form-group col">
+                            <label for="date">日期</label>
+                            <input id="date" type="datetime-local" step="1" formControlName="date" class="form-input" />
+                        </div>
+                    </div>
+
+                    <!-- Note -->
+                    <div class="form-group">
+                        <label for="note">备注 (选填)</label>
+                        <textarea id="note" formControlName="note" class="form-input" rows="3"
+                            placeholder="添加备注..."></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-lg" [disabled]="addTransactionForm.invalid">
+                            保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    }
+
+    <!-- Transactions Table -->
+    <div class="card table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>分类</th>
+                    <th>备注</th>
+                    <th class="text-right">金额</th>
+                    <th style="width: 50px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (t of transactions(); track t.id) {
+                <tr>
+                    <td (click)="startEdit(t.id, 'date', $event)" class="editable-cell">
+                        @if (editingCell?.id === t.id && editingCell?.field === 'date') {
+                        <input type="datetime-local" step="1" class="form-input form-input-sm" [value]="t.date"
+                            (change)="onEditChange(t, 'date', $event)" (blur)="onEditBlur()"
+                            (click)="$event.stopPropagation()" appAutofocus />
+                        } @else {
+                        {{ t.date | date:'yyyy-MM-dd HH:mm:ss' }}
+                        }
+                    </td>
+                    <td (click)="startEdit(t.id, 'category', $event)" class="editable-cell">
+                        @if (editingCell?.id === t.id && editingCell?.field === 'category') {
+                        <select class="form-select form-select-sm" (change)="onEditChange(t, 'category', $event)"
+                            (blur)="onEditBlur()" (click)="$event.stopPropagation()" [value]="t.category" appAutofocus>
+                            @if (t.amount < 0) { <option value="消费">消费</option>
+                                <option value="其他">其他</option>
+                                } @else {
+                                <option value="工资">工资</option>
+                                <option value="其他">其他</option>
+                                }
+                        </select>
+                        } @else {
+                        <div class="category-pill">{{ t.category }}</div>
+                        }
+                    </td>
+                    <td (click)="startEdit(t.id, 'note', $event)" class="text-muted editable-cell">
+                        @if (editingCell?.id === t.id && editingCell?.field === 'note') {
+                        <input type="text" class="form-input form-input-sm" [value]="t.note"
+                            (change)="onEditChange(t, 'note', $event)" (blur)="onEditBlur()"
+                            (click)="$event.stopPropagation()" appAutofocus />
+                        } @else {
+                        {{ t.note || '无备注' }}
+                        }
+                    </td>
+                    <td (click)="startEdit(t.id, 'amount', $event)" class="text-right amount editable-cell"
+                        [class.text-danger]="t.amount < 0" [class.text-success]="t.amount > 0">
+                        @if (editingCell?.id === t.id && editingCell?.field === 'amount') {
+                        <input type="number" class="form-input form-input-sm text-right" [value]="t.amount"
+                            (change)="onEditChange(t, 'amount', $event)" (blur)="onEditBlur()"
+                            (click)="$event.stopPropagation()" appAutofocus />
+                        } @else {
+                        {{ t.amount > 0 ? '+' : '' }}{{ t.amount | number:'1.2-2' }}
+                        }
+                    </td>
+                    <td>
+                        <button class="btn-icon delete-btn" (click)="deleteTransaction(t.id); $event.stopPropagation()"
+                            title="删除">
+                            &times;
+                        </button>
+                    </td>
+                </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
