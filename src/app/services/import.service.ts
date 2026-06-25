@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { ImportedTransaction, SpreadsheetRow } from '../../import/imported-transaction';
 import { parseAlipayBillRows } from './alipay-bill-parser';
 import { parseJdBillRows } from './jd-bill-parser';
+import { parseMeituanBillRows } from './meituan-bill-parser';
 import { parseWechatBillRows } from './wechat-bill-parser';
 
 @Injectable({
@@ -20,7 +21,7 @@ export class ImportService {
   }
 
   private parseSupportedRows(rows: SpreadsheetRow[]): ImportedTransaction[] {
-    const parsers = [parseWechatBillRows, parseJdBillRows, parseAlipayBillRows];
+    const parsers = [parseWechatBillRows, parseJdBillRows, parseAlipayBillRows, parseMeituanBillRows];
 
     for (const parser of parsers) {
       try {
