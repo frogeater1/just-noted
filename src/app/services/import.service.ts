@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, SpreadsheetRow } from '../../import/imported-transaction';
+import { parseAlipayBillRows } from './alipay-bill-parser';
 import { parseJdBillRows } from './jd-bill-parser';
 import { parseWechatBillRows } from './wechat-bill-parser';
 
@@ -19,7 +20,7 @@ export class ImportService {
   }
 
   private parseSupportedRows(rows: SpreadsheetRow[]): ImportedTransaction[] {
-    const parsers = [parseWechatBillRows, parseJdBillRows];
+    const parsers = [parseWechatBillRows, parseJdBillRows, parseAlipayBillRows];
 
     for (const parser of parsers) {
       try {
